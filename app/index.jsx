@@ -1,18 +1,18 @@
+import DateTimePicker from '@react-native-community/datetimepicker';
+import { Picker } from "@react-native-picker/picker";
 import React, { useEffect, useState } from "react";
 import {
     ActivityIndicator,
+    Alert,
     Dimensions,
+    Platform,
     ScrollView,
     StyleSheet,
     Text,
+    TouchableOpacity,
     View,
-    Platform,
-    Alert, // Used for the new simple "popup" on mobile
 } from "react-native";
 import { BarChart, LineChart, PieChart } from "react-native-chart-kit";
-import { Picker } from "@react-native-picker/picker";
-import DateTimePicker from '@react-native-community/datetimepicker';
-import { TouchableOpacity } from "react-native";
 // For web/hover-like behavior, you might use 'react-native-web' specific packages
 // or simply rely on the TouchableOpacity 'onPress' for touch devices.
 
@@ -216,15 +216,21 @@ const fields = {
             });
             const url = `${baseUrl}?${params.toString()}`;
 
-            console.log("Requesting:", url);
+            // console.log("Requesting:", url);
             const response = await fetch(url, { method: "GET" });
 
+            // Try to parse JSON body, but fall back to a minimal object on failure
+            let json = {};
+            try {
+                json = await response.json();
+            } catch (parseErr) {
+                console.error("Failed to parse backend JSON", parseErr);
+                json = { success: false, message: response.statusText || "No JSON body", error: String(parseErr) };
+            }
 
-            const json = await response.json() || {};
-            console.log("Backend response:", json);
+            console.log("Backend response:", json, "HTTP ok:", response.ok, "status:", response.status);
 
-
-            if (json.success) {
+            if (response.ok && json.success) {
                 // ✅ Use the fetched data (json.data) directly here to set all states.
                 const data = json.data || {};
                 setData(data);
@@ -275,10 +281,14 @@ const qualityRC = sortedData?.RC?.Quality || [];
                     RC: sortedOEERC,
                 });
             } else {
-                setError(json.message);
+                // Log full payload for debugging and show combined message in UI
+                console.error("Backend returned error:", json);
+                const combined = (json.message || "Query failed") + (json.error ? ": " + json.error : "") + (json.details ? " - " + json.details : "");
+                setError(combined);
             }
         } catch (err) {
-            setError(err.message);
+            console.error("Fetch error:", err);
+            setError(err.message || String(err));
         } finally {
             setLoading(false);
         }
